@@ -7,15 +7,51 @@ from datetime import datetime
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Test endpoint that doesn't require database
+@router.get("/test")
+async def test_auth_endpoint():
+    """Test endpoint to verify auth routes are working without database"""
+    return {
+        "message": "Auth routes working!",
+        "status": "healthy",
+        "cors": "enabled",
+        "database_required": False,
+        "timestamp": datetime.utcnow()
+    }
+
 # Database dependency - import from server
-def get_database():
-    from server import db
-    if db is None:
+async def get_database():
+    """Get database connection with better error handling"""
+    from server import db, client
+    
+    if db is None or client is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database not available"
+            detail={
+                "error": "Database service unavailable",
+                "message": "The database is currently not connected. Please check environment variables.",
+                "suggestions": [
+                    "Verify MONGO_URL environment variable is set",
+                    "Check MongoDB Atlas connectivity", 
+                    "Contact system administrator"
+                ],
+                "cors_working": True
+            }
         )
-    return db
+    
+    # Test if connection is actually working
+    try:
+        await client.admin.command('ping')
+        return db
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "Database connection failed",
+                "message": f"Database ping failed: {str(e)}",
+                "cors_working": True
+            }
+        )
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(user: UserRegister, response: Response):
@@ -23,8 +59,8 @@ async def register(user: UserRegister, response: Response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     
-    # Get database connection
-    db = get_database()
+    # Get database connection with error handling
+    db = await get_database()
     
     # Check if user already exists
     existing_user = await db.users.find_one({"email": user.email})
@@ -67,8 +103,8 @@ async def login(user: UserLogin, response: Response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     
-    # Get database connection
-    db = get_database()
+    # Get database connection with error handling
+    db = await get_database()
     
     # Find user
     db_user = await db.users.find_one({"email": user.email})
@@ -106,8 +142,8 @@ async def login(user: UserLogin, response: Response):
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user(user_id: str = Depends(get_current_user_id)):
-    # Get database connection
-    db = get_database()
+    # Get database connection with error handling
+    db = await get_database()
     
     db_user = await db.users.find_one({"_id": ObjectId(user_id)})
     if not db_user:
