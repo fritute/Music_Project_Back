@@ -190,43 +190,6 @@ async def http_exception_handler_with_cors(request: Request, exc: HTTPException)
     
     return response
 
-# Root route for main app
-@app.get("/")
-async def read_root():
-    db_status = "disconnected"
-    db_info = {}
-    
-    if client and db:
-        try:
-            # Test database connection
-            await client.admin.command('ping')
-            db_status = "connected"
-            
-            # Get database info
-            server_info = await client.server_info()
-            db_info = {
-                "name": db.name,
-                "mongodb_version": server_info.get("version", "unknown"),
-                "connection_time": "< 1s"
-            }
-        except Exception as e:
-            db_status = f"error: {str(e)}"
-    
-    return {
-        "message": "🎵 MusicStream API", 
-        "version": "1.0.0",
-        "status": "online",
-        "database": {
-            "status": db_status,
-            **db_info
-        },
-        "endpoints": {
-            "docs": "/docs",
-            "api": "/api",
-            "health": "/test-cors"
-        }
-    }
-
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
@@ -234,6 +197,61 @@ api_router = APIRouter(prefix="/api")
 @api_router.get("/")
 async def root():
     return {"message": "MusicStream API is running", "status": "healthy"}
+
+# Simple health check for Render
+@app.get("/health")  
+async def simple_health_check():
+    """Simple health check for Render platform"""
+    return {
+        "status": "healthy",
+        "service": "MusicStream API",
+        "version": "1.0.0",
+        "environment": os.getenv("ENVIRONMENT", "unknown")
+    }
+
+# Render-specific root endpoint
+@app.get("/")
+async def render_root():
+    """Root endpoint optimized for Render health checks"""
+    try:
+        db_status = "disconnected"
+        db_info = {}
+        
+        if client and db:
+            try:
+                # Quick ping test
+                await asyncio.wait_for(client.admin.command('ping'), timeout=2.0)
+                db_status = "connected"
+                db_info = {"name": db.name}
+            except asyncio.TimeoutError:
+                db_status = "timeout"
+            except Exception as e:
+                db_status = f"error: {str(e)}"
+        
+        return {
+            "message": "🎵 MusicStream API", 
+            "version": "1.0.0",
+            "status": "online",
+            "database": {
+                "status": db_status,
+                **db_info
+            },
+            "endpoints": {
+                "docs": "/docs",
+                "api": "/api",
+                "health": "/health"
+            },
+            "render_ready": True
+        }
+    except Exception as e:
+        # Never fail health check - Render needs this to work
+        return {
+            "message": "🎵 MusicStream API", 
+            "version": "1.0.0",
+            "status": "online",
+            "error": str(e),
+            "render_ready": True
+        }
 
 # API health check  
 @api_router.get("/health")
@@ -377,13 +395,22 @@ async def test_cors():
 @app.on_event("startup") 
 async def startup_event():
     """Initialize database connection on startup"""
-    success = await init_database()
-    if not success:
-        logger.warning("⚠️ API running without database connection")
-        logger.info("💡 To connect to database:")
-        logger.info("   1. Check your internet connection")
-        logger.info("   2. Verify MongoDB Atlas credentials in .env")
-        logger.info("   3. Or install MongoDB locally")
+    try:
+        success = await init_database()
+        if not success:
+            logger.warning("⚠️ API running without database connection")
+            logger.info("💡 To connect to database:")
+            logger.info("   1. Check your internet connection")
+            logger.info("   2. Verify MongoDB Atlas credentials in environment variables")
+            logger.info("   3. Check if MONGO_URL environment variable is set")
+            
+            # For production (Render), this is critical
+            if os.getenv("ENVIRONMENT") == "production":
+                logger.error("🚨 Production environment requires database connection!")
+                # Don't fail startup, but log the error
+    except Exception as e:
+        logger.error(f"❌ Startup error: {e}")
+        # In production, continue anyway to allow health checks
 
 @app.on_event("shutdown")
 async def shutdown_event():
