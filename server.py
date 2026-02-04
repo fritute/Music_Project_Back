@@ -8,6 +8,7 @@ from pymongo.server_api import ServerApi
 from datetime import datetime
 from cors_config import get_cors_config
 from production_cors import ProductionCORSMiddleware
+from production_ssl import get_production_mongo_client, get_render_compatible_url
 from database_utils import init_collections, check_database_health
 import os
 import logging
@@ -40,30 +41,17 @@ async def init_database():
         logger.warning("MONGO_URL not found, running without database")
         return False
     
-    # Try Atlas first with ServerApi, then local if it fails
+    # Connection configs with SSL fixes for Render
     connection_configs = [
         {
             "url": mongo_url,
             "type": "Atlas",
-            "options": {
-                "serverSelectionTimeoutMS": 15000,
-                "connectTimeoutMS": 15000,
-                "socketTimeoutMS": 15000,
-                "maxPoolSize": 10,
-                "minPoolSize": 1,
-                "server_api": ServerApi('1')
-            }
+            "use_production": True  # Flag to use production SSL client
         },
         {
             "url": mongo_local_url,
             "type": "Local",
-            "options": {
-                "serverSelectionTimeoutMS": 5000,
-                "connectTimeoutMS": 5000,
-                "socketTimeoutMS": 5000,
-                "maxPoolSize": 10,
-                "minPoolSize": 1
-            }
+            "use_production": False
         }
     ]
     
@@ -71,8 +59,19 @@ async def init_database():
         try:
             logger.info(f"🔌 Trying {config['type']} MongoDB connection...")
             
-            # Create client with appropriate settings
-            client = AsyncIOMotorClient(config["url"], **config["options"])
+            if config.get("use_production") and os.getenv("ENVIRONMENT") == "production":
+                # Use production SSL client for Atlas in production
+                compatible_url = get_render_compatible_url(config["url"])
+                client = get_production_mongo_client(compatible_url)
+                logger.info("Using production SSL configuration")
+            else:
+                # Use standard client for local or development
+                client = AsyncIOMotorClient(
+                    config["url"],
+                    serverSelectionTimeoutMS=30000,
+                    connectTimeoutMS=30000,
+                    socketTimeoutMS=30000
+                )
             
             # Test connection
             await client.admin.command('ping')
