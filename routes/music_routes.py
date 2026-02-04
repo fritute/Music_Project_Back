@@ -13,7 +13,15 @@ import mimetypes
 
 router = APIRouter(prefix="/music", tags=["music"])
 
-from server import db
+# Database dependency - import from server
+def get_database():
+    from server import db
+    if db is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available"
+        )
+    return db
 
 # Use relative paths for Render compatibility
 UPLOAD_DIR = Path("uploads/music")
@@ -100,6 +108,8 @@ async def upload_music(
         "createdAt": datetime.utcnow()
     }
     
+    # Get database connection
+    db = get_database()
     result = await db.musics.insert_one(music_dict)
     music_id = str(result.inserted_id)
     

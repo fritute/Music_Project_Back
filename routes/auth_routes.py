@@ -7,14 +7,24 @@ from datetime import datetime
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Database dependency
-from server import db
+# Database dependency - import from server
+def get_database():
+    from server import db
+    if db is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not available"
+        )
+    return db
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(user: UserRegister, response: Response):
     # Add CORS headers manually
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    # Get database connection
+    db = get_database()
     
     # Check if user already exists
     existing_user = await db.users.find_one({"email": user.email})
@@ -57,6 +67,9 @@ async def login(user: UserLogin, response: Response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     
+    # Get database connection
+    db = get_database()
+    
     # Find user
     db_user = await db.users.find_one({"email": user.email})
     if not db_user:
@@ -93,6 +106,9 @@ async def login(user: UserLogin, response: Response):
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user(user_id: str = Depends(get_current_user_id)):
+    # Get database connection
+    db = get_database()
+    
     db_user = await db.users.find_one({"_id": ObjectId(user_id)})
     if not db_user:
         raise HTTPException(

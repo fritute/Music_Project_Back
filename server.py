@@ -1,4 +1,6 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.exception_handlers import http_exception_handler
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -117,45 +119,76 @@ except Exception as e:
 # Create the main app without a prefix
 app = FastAPI(title="MusicStream API", version="1.0.0")
 
-# Configure CORS middleware FIRST - before any routes
-# Use production middleware for better compatibility
-app.add_middleware(ProductionCORSMiddleware)
+# Global CORS headers middleware - MUST be first
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    """Add CORS headers to all responses including errors"""
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        # Even if there's an error, return with CORS headers
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"}
+        )
+    
+    # Add CORS headers to ALL responses
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+    response.headers["Access-Control-Allow-Headers"] = "Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, Range, Cache-Control"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    
+    return response
 
-# Also add standard CORS as backup
+# Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001", 
-        "http://localhost:5173",  # Vite
-        "http://localhost:4200",  # Angular
-        "https://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "https://127.0.0.1:3000",
-        "https://music-project-front-3.vercel.app",  # Adicione seu domínio frontend aqui
-        "*"  # Allow all for development
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
-    allow_headers=[
-        "Accept",
-        "Accept-Language", 
-        "Content-Language",
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers",
-        "X-CSRF-Token",
-        "Cache-Control",
-        "Pragma",
-        "Range",
-        "Content-Range"
-    ],
-    expose_headers=["*"],
-    max_age=3600
+    allow_headers=["*"],
+    expose_headers=["*"]
 )
+
+# Global exception handler that preserves CORS
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all exceptions while preserving CORS headers"""
+    logger.error(f"Global exception: {exc}")
+    
+    response = JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "error": str(exc) if os.getenv("DEBUG") == "true" else "Server error"
+        }
+    )
+    
+    # Ensure CORS headers are always present
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    
+    return response
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler_with_cors(request: Request, exc: HTTPException):
+    """Handle HTTP exceptions while preserving CORS headers"""
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+    
+    # Add CORS headers
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    
+    return response
 
 # Root route for main app
 @app.get("/")
