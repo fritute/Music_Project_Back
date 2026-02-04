@@ -15,10 +15,22 @@ router = APIRouter(prefix="/music", tags=["music"])
 
 from server import db
 
-UPLOAD_DIR = Path("/app/backend/uploads/music")
-COVER_DIR = Path("/app/backend/uploads/covers")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-COVER_DIR.mkdir(parents=True, exist_ok=True)
+# Use relative paths for Render compatibility
+UPLOAD_DIR = Path("uploads/music")
+COVER_DIR = Path("uploads/covers")
+
+# Create directories safely
+try:
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    COVER_DIR.mkdir(parents=True, exist_ok=True)
+except PermissionError:
+    # In production, use /tmp directory if uploads folder is not writable
+    import tempfile
+    temp_dir = Path(tempfile.gettempdir())
+    UPLOAD_DIR = temp_dir / "music"
+    COVER_DIR = temp_dir / "covers"
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    COVER_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/upload", response_model=MusicResponse, status_code=status.HTTP_201_CREATED)
 async def upload_music(

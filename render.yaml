@@ -17,5 +17,5 @@ services:
         value: 1
     disk:
       name: musicstream-disk
-      mountPath: /uploads
+      mountPath: /tmp
       sizeGB: 1
