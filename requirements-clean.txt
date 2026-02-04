@@ -3,9 +3,9 @@ fastapi==0.110.1
 uvicorn[standard]==0.25.0
 starlette==0.37.2
 
-# Database
+# Database - Updated as per MongoDB instructions
 motor==3.3.1
-pymongo[srv]==4.5.0
+pymongo[srv]==3.12
 dnspython==2.8.0
 
 # Authentication & Security
