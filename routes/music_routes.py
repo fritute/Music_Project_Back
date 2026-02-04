@@ -127,7 +127,14 @@ async def stream_music(filename: str):
     return FileResponse(
         path=file_path,
         media_type="audio/mpeg",
-        filename=filename
+        filename=filename,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "public, max-age=3600",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Range, Content-Range"
+        }
     )
 
 @router.get("/cover/{filename}")
@@ -145,7 +152,11 @@ async def get_cover(filename: str):
     return FileResponse(
         path=file_path,
         media_type=media_type,
-        filename=filename
+        filename=filename,
+        headers={
+            "Cache-Control": "public, max-age=3600",
+            "Access-Control-Allow-Origin": "*"
+        }
     )
 
 @router.get("", response_model=List[MusicResponse])
