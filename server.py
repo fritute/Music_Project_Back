@@ -2,6 +2,7 @@ from fastapi import FastAPI, APIRouter
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from datetime import datetime
 import os
 import logging
 from pathlib import Path
@@ -79,10 +80,38 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001", 
+        "https://localhost:3000",
+        "http://127.0.0.1:3000",
+        "*"  # Fallback para permitir todas as origens
+    ],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language", 
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Headers",
+        "Access-Control-Allow-Methods",
+        "X-CSRF-Token"
+    ],
+    expose_headers=["*"]
 )
+
+# Rota de teste para CORS
+@app.get("/test-cors")
+async def test_cors():
+    return {
+        "message": "CORS working!", 
+        "status": "ok",
+        "timestamp": datetime.utcnow(),
+        "database": "connected" if db is not None else "disconnected"
+    }
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
