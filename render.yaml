@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: musicstream-api
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: NODE_ENV
+        value: production
+      - key: WEB_CONCURRENCY
+        value: 1
+    disk:
+      name: musicstream-disk
+      mountPath: /uploads
+      sizeGB: 1

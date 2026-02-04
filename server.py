@@ -9,10 +9,34 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# MongoDB connection with error handling
+client = None
+db = None
+
+try:
+    mongo_url = os.getenv('MONGO_URL')
+    db_name = os.getenv('DB_NAME', 'musicstream')
+    
+    if not mongo_url:
+        logger.warning("MONGO_URL not found, running without database")
+        client = None
+        db = None
+    else:
+        logger.info("Connecting to MongoDB...")
+        client = AsyncIOMotorClient(mongo_url)
+        db = client[db_name]
+        logger.info("MongoDB connection initialized")
+except Exception as e:
+    logger.error(f"Failed to connect to MongoDB: {e}")
+    client = None
+    db = None
 
 # Create the main app without a prefix
 app = FastAPI(title="MusicStream API", version="1.0.0")
@@ -20,10 +44,12 @@ app = FastAPI(title="MusicStream API", version="1.0.0")
 # Root route for main app
 @app.get("/")
 async def read_root():
+    db_status = "connected" if db is not None else "disconnected"
     return {
         "message": "🎵 MusicStream API", 
         "version": "1.0.0",
         "status": "online",
+        "database": db_status,
         "docs": "/docs",
         "api": "/api"
     }
@@ -58,13 +84,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client:
+        client.close()
+        logger.info("MongoDB connection closed")
