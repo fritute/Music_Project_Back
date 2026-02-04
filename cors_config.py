@@ -17,7 +17,11 @@ def get_cors_origins() -> List[str]:
         "https://localhost:3000",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
-        "https://127.0.0.1:3000"
+        "https://127.0.0.1:3000",
+        # Adicionar domínios de produção conhecidos
+        "https://music-project-front-3.vercel.app",
+        "https://music-project-backend.onrender.com",
+        "https://music-project-back-4.onrender.com"
     ]
     
     # Origens de produção do arquivo .env

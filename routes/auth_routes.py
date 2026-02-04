@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from models import UserRegister, UserLogin, UserResponse, UserInDB, TokenResponse
 from auth import hash_password, verify_password, create_access_token, get_current_user_id
@@ -11,7 +11,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 from server import db
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(user: UserRegister):
+async def register(user: UserRegister, response: Response):
+    # Add CORS headers manually
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    
     # Check if user already exists
     existing_user = await db.users.find_one({"email": user.email})
     if existing_user:
@@ -48,7 +52,11 @@ async def register(user: UserRegister):
     )
 
 @router.post("/login", response_model=TokenResponse)
-async def login(user: UserLogin):
+async def login(user: UserLogin, response: Response):
+    # Add CORS headers manually
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    
     # Find user
     db_user = await db.users.find_one({"email": user.email})
     if not db_user:

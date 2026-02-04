@@ -5,6 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.server_api import ServerApi
 from datetime import datetime
 from cors_config import get_cors_config
+from production_cors import ProductionCORSMiddleware
 from database_utils import init_collections, check_database_health
 import os
 import logging
@@ -115,6 +116,46 @@ except Exception as e:
 
 # Create the main app without a prefix
 app = FastAPI(title="MusicStream API", version="1.0.0")
+
+# Configure CORS middleware FIRST - before any routes
+# Use production middleware for better compatibility
+app.add_middleware(ProductionCORSMiddleware)
+
+# Also add standard CORS as backup
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001", 
+        "http://localhost:5173",  # Vite
+        "http://localhost:4200",  # Angular
+        "https://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "https://127.0.0.1:3000",
+        "https://music-project-front-3.vercel.app",  # Adicione seu domínio frontend aqui
+        "*"  # Allow all for development
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language", 
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+        "X-CSRF-Token",
+        "Cache-Control",
+        "Pragma",
+        "Range",
+        "Content-Range"
+    ],
+    expose_headers=["*"],
+    max_age=3600
+)
 
 # Root route for main app
 @app.get("/")
@@ -250,8 +291,12 @@ api_router.include_router(favorite_router)
 
 # Add OPTIONS handler for CORS preflight
 @app.options("/{full_path:path}")
-async def options_handler():
-    return {"message": "OK"}
+async def options_handler(full_path: str):
+    return {
+        "message": "CORS preflight OK",
+        "path": full_path,
+        "methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    }
 
 # CORS test endpoint
 @app.get("/test-cors")
@@ -282,10 +327,6 @@ async def test_cors():
             "credentials": True
         }
     }
-
-# Configure CORS middleware BEFORE including routers
-cors_config = get_cors_config()
-app.add_middleware(CORSMiddleware, **cors_config)
 
 # Include the router in the main app
 app.include_router(api_router)
