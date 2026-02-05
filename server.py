@@ -6,10 +6,10 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.server_api import ServerApi
 from datetime import datetime
-from cors_config import get_cors_config
-from production_cors import ProductionCORSMiddleware
-from production_ssl import get_production_mongo_client, get_render_compatible_url
-from database_utils import init_collections, check_database_health
+from config.cors_config import get_cors_config
+from config.production_cors import ProductionCORSMiddleware
+from config.production_ssl import get_production_mongo_client, get_render_compatible_url
+from utils.database_utils import init_collections, check_database_health
 import os
 import logging
 import asyncio
